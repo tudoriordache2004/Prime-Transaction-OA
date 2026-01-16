@@ -1,0 +1,4 @@
+finnhub-python
+python-dotenv
+fastapi
+uvicorn[standard]

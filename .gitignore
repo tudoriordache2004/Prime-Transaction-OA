@@ -1,0 +1,35 @@
+# Env / secrets
+.env
+.env.*
+
+# Virtualenv
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# SQLite
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Local outputs / logs
+out*.txt
+out*.json
+out*.jsonl
+*.log
+
+# Test / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
