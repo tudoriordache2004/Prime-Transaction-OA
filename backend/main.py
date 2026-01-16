@@ -5,6 +5,7 @@ from typing import Optional
 import finnhub
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from database import create_database
 
@@ -30,6 +31,22 @@ if not API_KEY:
 client = finnhub.Client(api_key=API_KEY)
 
 app = FastAPI(title="Finnhub -> SQLite API")
+
+CORS_ORIGINS = [
+    o.strip()
+    for o in os.environ.get(
+        "CORS_ORIGINS"
+    ).split(",")
+    if o.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def get_conn():
@@ -145,7 +162,7 @@ def get_stock(symbol: str):
             (symbol,),
         ).fetchone()
         if not row:
-            raise HTTPException(status_code=404, detail="Symbol not found in DB. Call POST /ingest/{symbol} first.")
+            raise HTTPException(status_code=404, detail="Symbol not found in DB.")
         return dict(row)
     finally:
         conn.close()
@@ -166,7 +183,7 @@ def quotes_latest(limit: int = 1000, offset: int = 0):
         return [dict(r) for r in rows]
     finally:
         conn.close()
-        
+
 @app.get("/quotes/latest/{symbol}")
 def get_quote_latest(symbol: str):
     symbol = symbol.strip().upper()
