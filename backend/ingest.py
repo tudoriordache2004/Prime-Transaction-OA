@@ -81,12 +81,32 @@ def fetch_with_retry(fn, *, retries: int, base_sleep_s: float):
             time.sleep(base_sleep_s * (2 ** attempt))
     raise last_exc
 
+def read_watchlist_symbols(db_path: str) -> list[str]:
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON;")
+    try:
+        rows = conn.execute(
+            """
+            SELECT symbol
+            FROM watchlist
+            ORDER BY
+              CASE WHEN position IS NULL THEN 1 ELSE 0 END,
+              position,
+              created_at
+            """
+        ).fetchall()
+        return [r["symbol"] for r in rows]
+    finally:
+        conn.close()
+
 
 def main():
     load_dotenv()
 
     parser = argparse.ArgumentParser(description="Ingest Finnhub -> SQLite (stocks + quotes_latest)")
-    parser.add_argument("--symbols", default=os.environ.get("SYMBOLS", "AAPL"), help="Ex: AAPL,TSLA,AMZN")
+    # change: symbols devine override, altfel citim din DB
+    parser.add_argument("--symbols", default="", help="Optional override: Ex: AAPL,TSLA (altfel ia din DB watchlist)")
     parser.add_argument("--db-path", default=os.environ.get("DB_PATH"), help="Path către SQLite db")
     parser.add_argument("--retries", type=int, default=3)
     parser.add_argument("--sleep", type=float, default=0.5, help="Sleep între simboluri (sec)")
@@ -94,17 +114,22 @@ def main():
 
     api_key = os.environ.get("FINNHUB_API_KEY")
     if not api_key:
-        raise SystemExit("Missing FINNHUB_API_KEY (setează în env sau în .env)")
+        raise SystemExit("Missing FINNHUB_API_KEY")
 
-    symbols = parse_symbols(args.symbols)
-    if not symbols:
-        raise SystemExit("No symbols provided.")
-
+    # change: calculezi db_path ÎNAINTE să citești watchlist
     base_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = args.db_path or os.path.join(base_dir, "finnhub_data.db")
 
-    # Asigură schema
+    # asigură schema (inclusiv watchlist)
     create_database(db_path)
+
+    # change: simboluri din CLI sau din DB
+    symbols = parse_symbols(args.symbols) if args.symbols else []
+    if not symbols:
+        symbols = read_watchlist_symbols(db_path)
+
+    if not symbols:
+        raise SystemExit("Watchlist is empty. Add via POST /watchlist/{symbol} or pass --symbols.")
 
     client = finnhub.Client(api_key=api_key)
 

@@ -55,6 +55,22 @@ def get_conn():
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
+def normalize_symbol(symbol: str) -> str:
+    return symbol.strip().upper()
+
+def db_watchlist_symbols(conn: sqlite3.Connection) -> list[str]:
+    rows = conn.execute(
+        """
+        SELECT symbol
+        FROM watchlist
+        ORDER BY
+          CASE WHEN position IS NULL THEN 1 ELSE 0 END,
+          position,
+          created_at
+        """
+    ).fetchall()
+    return [r["symbol"] for r in rows]
+
 
 @app.on_event("startup")
 def startup():
@@ -205,28 +221,154 @@ def get_quote_latest(symbol: str):
 
 @app.get("/watchlist")
 def watchlist():
-    return {"symbols": WATCHLIST_SYMBOLS, "source": "env:SYMBOLS"}
+    conn = get_conn()
+    try:
+        symbols = db_watchlist_symbols(conn)
+        return {"symbols": symbols, "source": "db:watchlist"}
+    finally:
+        conn.close()
 
-@app.get("/watchlist/stocks")
-def watchlist_stocks():
-    symbols = WATCHLIST_SYMBOLS
-    if not symbols:
-        return []
+
+@app.post("/watchlist/{symbol}")
+def watchlist_add(symbol: str):
+    symbol = normalize_symbol(symbol)
+    if not symbol:
+        raise HTTPException(status_code=400, detail="Empty symbol")
 
     conn = get_conn()
     try:
-        placeholders = ",".join(["?"] * len(symbols))
-        rows = conn.execute(
-            f"""
-            SELECT symbol, name, currency, exchange, industry, updated_at
-            FROM stocks
-            WHERE symbol IN ({placeholders})
-            ORDER BY symbol
+        # Ensure stock exists (FK requires it). If not, insert a minimal row.
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO stocks(symbol, name, currency, exchange, industry, updated_at)
+            VALUES (?, NULL, NULL, NULL, NULL, CURRENT_TIMESTAMP)
             """,
-            tuple(symbols),
+            (symbol,),
+        )
+
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO watchlist(symbol, created_at)
+            VALUES (?, CURRENT_TIMESTAMP)
+            """,
+            (symbol,),
+        )
+        conn.commit()
+        return {"ok": True, "symbol": symbol}
+    finally:
+        conn.close()
+
+@app.post("/watchlist/{symbol}/refresh")
+def refresh_symbol(symbol: str):
+    symbol = normalize_symbol(symbol)
+    if not symbol:
+        raise HTTPException(status_code=400, detail="Empty symbol")
+
+    try:
+        profile = client.company_profile2(symbol=symbol) or {}
+        quote = client.quote(symbol) or {}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Finnhub error: {repr(e)}")
+
+    quote_ts = quote.get("t")
+    if quote_ts is None:
+        raise HTTPException(status_code=502, detail="Quote missing 't'")
+
+    name = profile.get("name")
+    currency = profile.get("currency")
+    exchange = profile.get("exchange")
+    industry = profile.get("finnhubIndustry")
+
+    current_price = quote.get("c")
+    high_price = quote.get("h")
+    low_price = quote.get("l")
+    open_price = quote.get("o")
+    previous_close = quote.get("pc")
+
+    conn = get_conn()
+    try:
+        conn.execute(
+            """
+            INSERT INTO stocks(symbol, name, currency, exchange, industry, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(symbol) DO UPDATE SET
+              name=excluded.name,
+              currency=excluded.currency,
+              exchange=excluded.exchange,
+              industry=excluded.industry,
+              updated_at=CURRENT_TIMESTAMP;
+            """,
+            (symbol, name, currency, exchange, industry),
+        )
+
+        conn.execute(
+            """
+            INSERT INTO quotes_latest(symbol, current_price, high_price, low_price, open_price, previous_close, quote_ts, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(symbol) DO UPDATE SET
+              current_price=excluded.current_price,
+              high_price=excluded.high_price,
+              low_price=excluded.low_price,
+              open_price=excluded.open_price,
+              previous_close=excluded.previous_close,
+              quote_ts=excluded.quote_ts,
+              updated_at=CURRENT_TIMESTAMP;
+            """,
+            (symbol, current_price, high_price, low_price, open_price, previous_close, quote_ts),
+        )
+
+        conn.commit()
+        return {"ok": True, "symbol": symbol, "quote_ts": quote_ts}
+    finally:
+        conn.close()
+
+@app.delete("/watchlist/{symbol}/purge")
+def watchlist_purge(symbol: str):
+    symbol = normalize_symbol(symbol)
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN;")
+
+        q = conn.execute("DELETE FROM quotes_latest WHERE symbol = ?", (symbol,)).rowcount
+        w = conn.execute("DELETE FROM watchlist WHERE symbol = ?", (symbol,)).rowcount
+        s = conn.execute("DELETE FROM stocks WHERE symbol = ?", (symbol,)).rowcount
+
+        conn.commit()
+        return {"ok": True, "symbol": symbol, "deleted": {"quotes_latest": q, "watchlist": w, "stocks": s}}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+@app.get("/watchlist/stocks")
+def watchlist_stocks():
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            """
+            SELECT s.symbol, s.name, s.currency, s.exchange, s.industry, s.updated_at
+            FROM watchlist w
+            JOIN stocks s ON s.symbol = w.symbol
+            ORDER BY
+              CASE WHEN w.position IS NULL THEN 1 ELSE 0 END,
+              w.position,
+              w.created_at
+            """
         ).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+@app.get("/search")
+def search(query: str):
+    q = (query or "").strip()
+    if len(q) < 2:
+        raise HTTPException(status_code=400, detail="Query too short (min 2 chars).")
+
+    try:
+        return client.symbol_lookup(q)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Finnhub error: {repr(e)}")
 
 

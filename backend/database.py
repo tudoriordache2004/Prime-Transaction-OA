@@ -33,6 +33,16 @@ def create_database(db_name="finnhub_data.db"):
         )
     ''')
 
+    # 3. Tabel pentru Watchlist (simbolurile pe care le urmărim)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS watchlist (
+            symbol TEXT PRIMARY KEY,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            position INTEGER,
+            FOREIGN KEY (symbol) REFERENCES stocks (symbol)
+        )
+    ''')
+
     conn.commit()
     conn.close()
     print(f"Baza de date '{db_name}' a fost creată cu succes!")
