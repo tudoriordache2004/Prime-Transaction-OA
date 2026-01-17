@@ -1,7 +1,11 @@
 import type { QuoteLatest, Stock, Watchlist } from "./types"
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
+  typeof window === "undefined"
+    ? process.env.API_INTERNAL_BASE_URL ??
+      process.env.NEXT_PUBLIC_API_BASE_URL ??
+      "http://localhost:8000"
+    : process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
 
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, { cache: "no-store" })

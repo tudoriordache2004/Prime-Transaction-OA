@@ -1,0 +1,52 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY}
+      - DB_PATH=/data/finnhub_data.db
+      - CORS_ORIGINS=http://localhost:3000
+    volumes:
+      - db_data:/data
+
+  ingest:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python", "ingest.py", "--interval", "60"]
+    environment:
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY}
+      - DB_PATH=/data/finnhub_data.db
+    volumes:
+      - db_data:/data
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  seed:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python", "seed_watchlist_top.py"]
+    environment:
+      - DB_PATH=/data/finnhub_data.db
+    volumes:
+      - db_data:/data
+    profiles: ["seed"]
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+      - API_INTERNAL_BASE_URL=http://backend:8000
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
