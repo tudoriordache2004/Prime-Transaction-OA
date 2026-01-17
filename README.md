@@ -7,7 +7,7 @@ Mini-aplicatie full-stack care ia date din **Finnhub API**, cu ajutorul unor end
 - **FastAPI (backend)**: citește din SQLite și expune endpoint‑uri pentru stocks/quotes/watchlist/search.
 - **Ingest (worker)**: rulează periodic, citește simbolurile din tabela `watchlist` și face refresh în DB din Finnhub.
 - **Seed_watchlist_top**: stocheaza la inceput static 50 de valori in DB, pentru a evita supraincarcarea de date si un eventual API timeout.
-- **SQLite**: persistată într-un Docker volume (`db_data`), deci datele rămân între restarturi.
+- **SQLite**: in Docker volume (`db_data`), deci datele rămân între restarturi.
 - **Next.js (frontend)**: UI care consumă endpoint‑urile backend‑ului.
 
 ---
