@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 
 from database import create_database
 
+# Statically populates the db with 50 values from the API to avoid API timeout from fetching too much data
+
 DEFAULT = [
     "AAPL","MSFT","NVDA","AMZN","GOOGL","META","TSLA","BRK.B","JPM","V",
     "UNH","XOM","AVGO","LLY","MA","COST","HD","PG","KO","PEP",

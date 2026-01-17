@@ -155,6 +155,9 @@ def health():
 #     return {"ok": True, "symbol": symbol, "quote_ts": quote_ts}
 
 
+# ---------------------------------------------------------
+# Backend endpoints for stocks
+
 @app.get("/stocks")
 def list_stocks(limit: int = 100, offset: int = 0):
     conn = get_conn()
@@ -182,6 +185,9 @@ def get_stock(symbol: str):
         return dict(row)
     finally:
         conn.close()
+
+# ---------------------------------------------------------
+# Backend endpoints for quotes
 
 @app.get("/quotes/latest")
 def quotes_latest(limit: int = 1000, offset: int = 0):
@@ -240,6 +246,8 @@ def quote_history(symbol: str, limit: int = 200):
     finally:
         conn.close()
 
+# ---------------------------------------------------------
+# Backend endpoints for watchlist
 @app.get("/watchlist")
 def watchlist():
     conn = get_conn()

@@ -10,12 +10,13 @@ from dotenv import load_dotenv
 
 from database import create_database
 
+# Script that fetches and parses information from the Finnhub API and sends it to the Sqlite db
 
 def parse_symbols(value: str) -> list[str]:
-    # Acceptă: "AAPL, TSLA AMZN"
     raw = value.replace(",", " ").split()
     return sorted({s.strip().upper() for s in raw if s.strip()})
 
+# This function takes the parsed symbols with the information from the APIs and inserts tge data in the db
 
 def upsert_learned_data(conn: sqlite3.Connection, symbol: str, profile: dict, quote: dict) -> None:
     name = profile.get("name")
@@ -79,7 +80,6 @@ def upsert_learned_data(conn: sqlite3.Connection, symbol: str, profile: dict, qu
 
 
 def fetch_with_retry(fn, *, retries: int, base_sleep_s: float):
-    # Retry simplu pentru rate limit / hiccups (nu e perfect, dar suficient pt MVP)
     last_exc = None
     for attempt in range(retries + 1):
         try:
@@ -91,6 +91,7 @@ def fetch_with_retry(fn, *, retries: int, base_sleep_s: float):
             time.sleep(base_sleep_s * (2 ** attempt))
     raise last_exc
 
+# Reads from the db for /watchlist
 def read_watchlist_symbols(db_path: str) -> list[str]:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
