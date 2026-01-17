@@ -219,6 +219,27 @@ def get_quote_latest(symbol: str):
     finally:
         conn.close()
 
+@app.get("/quotes/history/{symbol}")
+def quote_history(symbol: str, limit: int = 200):
+    symbol = symbol.strip().upper()
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            """
+            SELECT collected_ts, current_price
+            FROM quotes_history
+            WHERE symbol = ?
+            ORDER BY quote_ts DESC
+            LIMIT ?
+            """,
+            (symbol, limit),
+        ).fetchall()
+
+        out = [dict(r) for r in rows][::-1]
+        return out
+    finally:
+        conn.close()
+
 @app.get("/watchlist")
 def watchlist():
     conn = get_conn()
@@ -329,12 +350,17 @@ def watchlist_purge(symbol: str):
     try:
         conn.execute("BEGIN;")
 
+        h = conn.execute("DELETE FROM quotes_history WHERE symbol = ?", (symbol,)).rowcount
         q = conn.execute("DELETE FROM quotes_latest WHERE symbol = ?", (symbol,)).rowcount
         w = conn.execute("DELETE FROM watchlist WHERE symbol = ?", (symbol,)).rowcount
         s = conn.execute("DELETE FROM stocks WHERE symbol = ?", (symbol,)).rowcount
 
         conn.commit()
-        return {"ok": True, "symbol": symbol, "deleted": {"quotes_latest": q, "watchlist": w, "stocks": s}}
+        return {
+            "ok": True,
+            "symbol": symbol,
+            "deleted": {"quotes_history": h, "quotes_latest": q, "watchlist": w, "stocks": s},
+        }
     except Exception:
         conn.rollback()
         raise

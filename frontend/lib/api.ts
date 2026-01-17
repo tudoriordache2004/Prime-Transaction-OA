@@ -35,6 +35,10 @@ export const api = {
   quotesLatestAll: () => getJson<QuoteLatest[]>("/quotes/latest"),
   quoteLatest: (symbol: string) =>
     getJson<QuoteLatest>(`/quotes/latest/${encodeURIComponent(symbol)}`),
+  quoteHistory: (symbol: string, limit = 200) =>
+    getJson<{ collected_ts: number; current_price: number | null }[]>(
+      `/quotes/history/${encodeURIComponent(symbol)}?limit=${limit}`
+    ),
 
   search: (query: string) =>
     getJson<any>(`/search?query=${encodeURIComponent(query)}`),

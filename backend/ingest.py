@@ -66,6 +66,16 @@ def upsert_learned_data(conn: sqlite3.Connection, symbol: str, profile: dict, qu
         """,
         (symbol, current_price, high_price, low_price, open_price, previous_close, quote_ts),
     )
+    collected_ts = int(time.time())
+
+    cur.execute(
+        """
+        INSERT OR IGNORE INTO quotes_history(
+        symbol, collected_ts, quote_ts, current_price, high_price, low_price, open_price, previous_close
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (symbol, collected_ts, quote_ts, current_price, high_price, low_price, open_price, previous_close),
+    )
 
 
 def fetch_with_retry(fn, *, retries: int, base_sleep_s: float):
@@ -110,6 +120,7 @@ def main():
     parser.add_argument("--db-path", default=os.environ.get("DB_PATH"), help="Path către SQLite db")
     parser.add_argument("--retries", type=int, default=3)
     parser.add_argument("--sleep", type=float, default=0.5, help="Sleep între simboluri (sec)")
+    parser.add_argument("--interval", type=int, default=0, help="Dacă >0, rerulează ingest la fiecare N secunde")
     args = parser.parse_args()
 
     api_key = os.environ.get("FINNHUB_API_KEY")
@@ -122,61 +133,69 @@ def main():
 
     # asigură schema (inclusiv watchlist)
     create_database(db_path)
-
-    # change: simboluri din CLI sau din DB
-    symbols = parse_symbols(args.symbols) if args.symbols else []
-    if not symbols:
-        symbols = read_watchlist_symbols(db_path)
-
-    if not symbols:
-        raise SystemExit("Watchlist is empty. Add via POST /watchlist/{symbol} or pass --symbols.")
-
     client = finnhub.Client(api_key=api_key)
 
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA foreign_keys = ON;")
 
-    summary = {
-        "db_path": db_path,
-        "symbols": symbols,
-        "started_at": datetime.now(timezone.utc).isoformat(),
-        "ok": [],
-        "fail": [],
-    }
+    while True:
+        # recitește watchlist-ul la fiecare rundă (dinamic)
+        symbols = parse_symbols(args.symbols) if args.symbols else []
+        if not symbols:
+            symbols = read_watchlist_symbols(db_path)
 
-    try:
-        for sym in symbols:
-            try:
-                profile = fetch_with_retry(
-                    lambda: client.company_profile2(symbol=sym) or {},
-                    retries=args.retries,
-                    base_sleep_s=1.0,
-                )
-                quote = fetch_with_retry(
-                    lambda: client.quote(sym) or {},
-                    retries=args.retries,
-                    base_sleep_s=1.0,
-                )
+        if not symbols:
+            print("Watchlist is empty. Waiting...")
+            if args.interval <= 0:
+                break
+            time.sleep(args.interval)
+            continue
 
-                conn.execute("BEGIN;")
-                upsert_learned_data(conn, sym, profile, quote)
-                conn.commit()
+        summary = {
+            "db_path": db_path,
+            "symbols": symbols,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "ok": [],
+            "fail": [],
+        }
 
-                summary["ok"].append({"symbol": sym, "quote_ts": quote.get("t")})
-            except Exception as e:
+        # deschide DB per rundă (safe pt long-running)
+        conn = sqlite3.connect(db_path)
+        conn.execute("PRAGMA foreign_keys = ON;")
+        try:
+            for sym in symbols:
                 try:
-                    conn.rollback()
-                except Exception:
-                    pass
-                summary["fail"].append({"symbol": sym, "error": repr(e)})
+                    profile = fetch_with_retry(
+                        lambda: client.company_profile2(symbol=sym) or {},
+                        retries=args.retries,
+                        base_sleep_s=1.0,
+                    )
+                    quote = fetch_with_retry(
+                        lambda: client.quote(sym) or {},
+                        retries=args.retries,
+                        base_sleep_s=1.0,
+                    )
 
-            time.sleep(args.sleep)
-    finally:
-        conn.close()
+                    conn.execute("BEGIN;")
+                    upsert_learned_data(conn, sym, profile, quote)
+                    conn.commit()
 
-    summary["finished_at"] = datetime.now(timezone.utc).isoformat()
+                    summary["ok"].append({"symbol": sym, "quote_ts": quote.get("t")})
+                except Exception as e:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                    summary["fail"].append({"symbol": sym, "error": repr(e)})
 
-    print(json.dumps(summary, ensure_ascii=False, indent=2))
+                time.sleep(args.sleep)
+        finally:
+            conn.close()
+
+        summary["finished_at"] = datetime.now(timezone.utc).isoformat()
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+
+        if args.interval <= 0:
+            break
+        time.sleep(args.interval)
 
 
 if __name__ == "__main__":

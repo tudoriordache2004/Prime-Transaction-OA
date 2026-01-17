@@ -43,6 +43,27 @@ def create_database(db_name="finnhub_data.db"):
         )
     ''')
 
+    # 4. Tabel pentru istoric quotes (pt grafice)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS quotes_history (
+        symbol TEXT,
+        collected_ts INTEGER,   -- int(time.time()) când ai rulat ingest
+        quote_ts INTEGER,       -- Finnhub t (poate rămâne constant)
+        current_price REAL,
+        high_price REAL,
+        low_price REAL,
+        open_price REAL,
+        previous_close REAL,
+        PRIMARY KEY (symbol, collected_ts),
+        FOREIGN KEY (symbol) REFERENCES stocks(symbol)
+        )  
+    ''')
+
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_quotes_history_symbol_ts
+        ON quotes_history(symbol, collected_ts)
+    ''')
+
     conn.commit()
     conn.close()
     print(f"Baza de date '{db_name}' a fost creată cu succes!")

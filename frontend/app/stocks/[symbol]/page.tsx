@@ -1,14 +1,16 @@
 import Link from "next/link"
 import { api } from "../../../lib/api"
+import { PriceChart } from "./PriceChart"
 
 type Props = { params: Promise<{ symbol: string }> }
 
 export default async function StockDetailsPage({ params }: Props) {
   const { symbol } = await params
 
-  const [stock, quote] = await Promise.all([
+  const [stock, quote, history] = await Promise.all([
     api.stock(symbol),
     api.quoteLatest(symbol),
+    api.quoteHistory(symbol, 200),
   ])
 
   return (
@@ -44,6 +46,12 @@ export default async function StockDetailsPage({ params }: Props) {
 
         <div className="mt-6 rounded-xl border bg-white p-4">
           <div className="text-xs text-zinc-600">Latest quote</div>
+          <div className="mt-6 rounded-xl border bg-white p-4">
+            <div className="text-xs text-zinc-600">Price history</div>
+            <div className="mt-2">
+              <PriceChart points={history} />
+            </div>
+          </div>
           <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
             <div>
               Price:{" "}

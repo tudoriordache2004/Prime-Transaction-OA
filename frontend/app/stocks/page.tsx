@@ -9,9 +9,14 @@ export default async function StocksPage() {
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="flex items-baseline justify-between">
           <h1 className="text-2xl font-semibold">Stocks</h1>
-          <Link className="text-sm underline" href="/watchlist">
-            Watchlist
-          </Link>
+          <div className="flex gap-4 text-sm">
+            <Link className="underline" href="/watchlist">
+              Watchlist
+            </Link>
+            <Link className="underline" href="/quotes">
+              Quotes
+            </Link>
+          </div>
         </div>
 
         <div className="mt-6 overflow-hidden rounded-xl border bg-white">

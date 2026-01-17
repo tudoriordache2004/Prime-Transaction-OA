@@ -4,6 +4,7 @@ import type { QuoteLatest } from "../../lib/types"
 // import { WatchlistSearch } from "./WatchlistSearch"
 import { WatchlistSearchWrapper } from "./WatchlistSearchWrapper"
 import { WatchlistRemoveButton } from "./WatchlistRemoveButton"
+import { AutoRefresh } from "./AutoRefresh"
 
 export default async function WatchlistPage() {
   const [watchlist, stocks, quotes] = await Promise.all([
@@ -19,11 +20,17 @@ export default async function WatchlistPage() {
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
       <main className="mx-auto max-w-5xl px-6 py-10">
+        <AutoRefresh everyMs={10000} />
         <div className="flex items-baseline justify-between">
           <h1 className="text-2xl font-semibold">Watchlist</h1>
-          <Link className="text-sm underline" href="/stocks">
-            All stocks
-          </Link>
+          <div className="flex gap-4 text-sm">
+            <Link className="underline" href="/stocks">
+              Stocks
+            </Link>
+            <Link className="underline" href="/quotes">
+              Quotes
+            </Link>
+          </div>
         </div>
 
         <div className="mt-6">
