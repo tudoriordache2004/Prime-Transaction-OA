@@ -1,11 +1,11 @@
 import sqlite3
 
 def create_database(db_name="finnhub_data.db"):
-    # Connecting to the sqlite3 db
+    # Conectarea la baza de date (se va crea automat dacă nu există)
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
 
-    # Company profiles, shown in the /watchlist
+    # 1. Tabel pentru Profilul Companiei
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS stocks (
         symbol TEXT PRIMARY KEY,
@@ -17,7 +17,8 @@ def create_database(db_name="finnhub_data.db"):
         )
     ''')
 
-    # Price fluctuation, shown in /quotes
+    # 2. Tabel pentru Prețuri (Quotes)
+    # Folosim o cheie străină (Foreign Key) către tabelul stocks
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS quotes_latest (
         symbol TEXT PRIMARY KEY,
@@ -32,6 +33,7 @@ def create_database(db_name="finnhub_data.db"):
         )
     ''')
 
+    # 3. Tabel pentru Watchlist (simbolurile pe care le urmărim)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS watchlist (
             symbol TEXT PRIMARY KEY,
@@ -41,7 +43,7 @@ def create_database(db_name="finnhub_data.db"):
         )
     ''')
 
-    # 4. Quotes history for updating the charts
+    # 4. Tabel pentru istoric quotes (pt grafice)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS quotes_history (
         symbol TEXT,
