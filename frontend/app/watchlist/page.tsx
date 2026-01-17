@@ -1,7 +1,8 @@
 import Link from "next/link"
 import { api } from "../../lib/api"
 import type { QuoteLatest } from "../../lib/types"
-import { WatchlistSearch } from "./WatchlistSearch"
+// import { WatchlistSearch } from "./WatchlistSearch"
+import { WatchlistSearchWrapper } from "./WatchlistSearchWrapper"
 import { WatchlistRemoveButton } from "./WatchlistRemoveButton"
 
 export default async function WatchlistPage() {
@@ -26,7 +27,7 @@ export default async function WatchlistPage() {
         </div>
 
         <div className="mt-6">
-          <WatchlistSearch existingSymbols={watchlist.symbols} />
+          <WatchlistSearchWrapper existingSymbols={watchlist.symbols} />
         </div>
 
         <div className="mt-6 overflow-hidden rounded-xl border bg-white">
